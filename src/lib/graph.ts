@@ -22,13 +22,49 @@ const State = Annotation.Root({
 });
 type S = typeof State.State;
 
-async function ask(system: string, user: string, temperature = 0.3): Promise<string> {
-  const llm = new ChatGroq({ model: config.groqModel(), apiKey: config.groqKey(), temperature, maxRetries: 4 });
-  const res = await llm.invoke([
-    { role: "system", content: system },
-    { role: "user", content: user },
-  ]);
-  return String(res.content).trim();
+// ---- Groq free-tier friendly calling -------------------------------------------------
+// Free tiers cap tokens-per-minute (e.g. 8,000). We (1) keep prompts small, (2) pace calls with a
+// sliding 60s token budget, and (3) wait out any 429 using the "try again in Ns" hint.
+const TPM_BUDGET = Number(process.env.GROQ_TPM || 6000);
+const used: { t: number; n: number }[] = [];
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const estTokens = (s: string) => Math.ceil(s.length / 3.5);
+
+async function waitForBudget(need: number, onWait?: (s: number) => void) {
+  for (;;) {
+    const now = Date.now();
+    while (used.length && now - used[0].t > 60_000) used.shift();
+    const total = used.reduce((a, u) => a + u.n, 0);
+    if (total + need <= TPM_BUDGET || !used.length) return;
+    const wait = Math.ceil((60_000 - (now - used[0].t)) / 1000) + 1;
+    onWait?.(wait);
+    await sleep(wait * 1000);
+  }
+}
+
+async function ask(system: string, user: string, temperature = 0.3, maxTokens = 900, onWait?: (s: number) => void): Promise<string> {
+  const llm = new ChatGroq({ model: config.groqModel(), apiKey: config.groqKey(), temperature, maxTokens, maxRetries: 0 });
+  const need = estTokens(system + user) + maxTokens;
+  for (let attempt = 0; ; attempt++) {
+    await waitForBudget(need, onWait);
+    used.push({ t: Date.now(), n: need });
+    try {
+      const res = await llm.invoke([
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ]);
+      return String(res.content).trim();
+    } catch (e: any) {
+      const msg = String(e?.message ?? e);
+      if ((e?.status === 429 || msg.includes("rate_limit")) && attempt < 8) {
+        const hint = Number(msg.match(/try again in ([\d.]+)s/i)?.[1] ?? 15);
+        onWait?.(Math.ceil(hint) + 1);
+        await sleep((hint + 1) * 1000);
+        continue;
+      }
+      throw e;
+    }
+  }
 }
 
 const emit = (cfg: RunnableConfig, msg: string) => (cfg.configurable?.emit as ((m: string) => void) | undefined)?.(msg);
@@ -88,7 +124,7 @@ async function write(state: S, cfg: RunnableConfig) {
   for (const [i, sec] of state.sections.entries()) {
     emit(cfg, `Writing section ${i + 1}/${state.sections.length}: ${sec.title}`);
     const ctx = [...new Set(sec.sourceIds)]
-      .map((id) => `[${id}] ${byId.get(id)!.title}\n${byId.get(id)!.text.slice(0, 1800)}`)
+      .map((id) => `[${id}] ${byId.get(id)!.title}\n${byId.get(id)!.text.slice(0, 1200)}`)
       .join("\n\n");
     body.push(
       ctx
@@ -98,6 +134,7 @@ async function write(state: S, cfg: RunnableConfig) {
               "paragraphs (use a short bullet list if it helps). Do not invent facts; do not include a " +
               "heading or a references list.",
             `Report topic: ${state.topic}\nSection: ${sec.title}\n\nSOURCES:\n${ctx}`,
+            0.3, 1100, (s) => emit(cfg, `Waiting ~${s}s for the Groq rate limit…`),
           )
         : "_No reliable sources were found for this section._",
     );
@@ -110,7 +147,8 @@ async function summarize(state: S, cfg: RunnableConfig) {
   const joined = state.sections.map((s, i) => `${s.title}:\n${state.body[i]}`).join("\n\n");
   const summary = await ask(
     "Write an executive summary of this research in 4-5 sentences of plain prose, with no citations or markdown. Be specific and concrete.",
-    `Topic: ${state.topic}\n\n${joined}`.slice(0, 12000),
+    `Topic: ${state.topic}\n\n${joined}`.slice(0, 7000),
+    0.3, 500, (s) => emit(cfg, `Waiting ~${s}s for the Groq rate limit…`),
   );
   const title = state.topic.trim().replace(/\b\w/g, (c) => c.toUpperCase());
   const md = [`# ${title}`, "## Executive Summary", summary];
