@@ -7,7 +7,7 @@ import { sendReport } from "./mailer";
 import { buildPdf } from "./pdf";
 import { gather, type Source } from "./search";
 
-type Section = { title: string; query: string; sourceIds: number[] };
+type Section = { title: string; question: string; query: string; sourceIds: number[] };
 
 const State = Annotation.Root({
   topic: Annotation<string>(),
@@ -71,29 +71,40 @@ const emit = (cfg: RunnableConfig, msg: string) => (cfg.configurable?.emit as ((
 
 async function plan(state: S, cfg: RunnableConfig) {
   emit(cfg, "Planning the research outline…");
+  const today = new Date().toISOString().slice(0, 10);
   const raw = await ask(
-    "You are a research planner. Reply with ONLY a JSON array of 5 objects, each " +
-      '{"title": "<section title>", "query": "<focused web search query>"}. ' +
-      "Sections must cover distinct angles (overview/background, key facts & data, current developments, " +
-      "challenges/criticism, outlook). No prose.",
+    "You are a senior research planner. Design a research plan for a report on the user's topic. " +
+      "Reply with ONLY a JSON array of 5 or 6 objects, each " +
+      '{"title": "<short section title>", "question": "<the one key question this section must answer>", ' +
+      '"query": "<a precise web search query: specific nouns, no filler words>"}. ' +
+      "Order the sections so the report reads well: background and definitions first, then key facts and data " +
+      "(numbers, players, mechanisms), then current developments, then challenges/risks/criticism or competing views, " +
+      "and finally outlook and practical takeaways. Sections must not overlap. " +
+      `Today is ${today}; add the year to a query when recency matters. No prose, no markdown fences.`,
     `Topic: ${state.topic}`,
     0.2,
+    700,
+    (w) => emit(cfg, `Waiting ~${w}s for the Groq rate limit…`),
   );
   let sections: Section[] = [];
   try {
     const arr = JSON.parse(raw.match(/\[[\s\S]*\]/)?.[0] ?? "[]");
-    sections = arr.slice(0, 6).map((s: any) => ({ title: String(s.title), query: String(s.query), sourceIds: [] }));
+    sections = arr
+      .filter((x: any) => x?.title && x?.query)
+      .slice(0, 6)
+      .map((x: any) => ({ title: String(x.title), question: String(x.question ?? x.title), query: String(x.query), sourceIds: [] }));
   } catch {}
-  if (!sections.length) {
+  if (sections.length < 3) {
     const t = state.topic;
     sections = [
-      ["Overview", `${t} overview`],
-      ["Key Facts and Data", `${t} statistics facts`],
-      ["Recent Developments", `${t} latest news`],
-      ["Challenges and Criticism", `${t} challenges criticism`],
-      ["Outlook", `${t} future outlook`],
-    ].map(([title, query]) => ({ title, query, sourceIds: [] }));
+      ["Overview and Background", `What is ${t} and why does it matter?`, `${t} overview`],
+      ["Key Facts and Data", `What are the key facts, numbers and players in ${t}?`, `${t} statistics key facts`],
+      ["Recent Developments", `What has changed recently in ${t}?`, `${t} latest developments ${new Date().getFullYear()}`],
+      ["Challenges and Criticism", `What are the main challenges or criticisms of ${t}?`, `${t} challenges criticism`],
+      ["Outlook", `Where is ${t} heading?`, `${t} future outlook`],
+    ].map(([title, question, query]) => ({ title, question, query, sourceIds: [] }));
   }
+  emit(cfg, `Plan ready: ${sections.map((x) => x.title).join(" · ")}`);
   return { sections };
 }
 
@@ -129,11 +140,14 @@ async function write(state: S, cfg: RunnableConfig) {
     body.push(
       ctx
         ? await ask(
-            "You are an expert research analyst writing one section of a report. Use ONLY the numbered " +
-              "sources provided. Cite claims inline as [1], [2]. Write 2-4 concise, information-dense " +
-              "paragraphs (use a short bullet list if it helps). Do not invent facts; do not include a " +
-              "heading or a references list.",
-            `Report topic: ${state.topic}\nSection: ${sec.title}\n\nSOURCES:\n${ctx}`,
+            "You are an expert research analyst writing one section of a report. Answer the section's key " +
+              "question using ONLY the numbered sources provided. Cite claims inline as [1], [2]. Write 2-4 " +
+              "concise, information-dense paragraphs (use a short bullet list for lists of facts). Prefer concrete " +
+              "numbers, names and dates over generalities. If the sources don't cover something, say so briefly " +
+              "rather than guessing. Do not repeat what other sections cover; do not include a heading or a " +
+              "references list.",
+            `Report topic: ${state.topic}\nSection: ${sec.title}\nKey question: ${sec.question}\n` +
+              `Other sections (do not duplicate): ${state.sections.filter((x) => x !== sec).map((x) => x.title).join("; ")}\n\nSOURCES:\n${ctx}`,
             0.3, 1100, (s) => emit(cfg, `Waiting ~${s}s for the Groq rate limit…`),
           )
         : "_No reliable sources were found for this section._",

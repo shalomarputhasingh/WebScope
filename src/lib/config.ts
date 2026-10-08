@@ -1,4 +1,5 @@
-const env = (k: string, d = "") => (process.env[k] ?? d).trim();
+// Trim and drop stray wrapping quotes so `KEY="value"` and `KEY=value` behave the same everywhere.
+const env = (k: string, d = "") => (process.env[k] ?? d).trim().replace(/^(["'])(.*)\1$/, "$2").trim();
 
 export const config = {
   groqKey: () => env("GROQ_API_KEY"),

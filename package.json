@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "check:mail": "node scripts/check-mail.mjs"
   },
   "dependencies": {
     "@langchain/core": "^1.2.17",
