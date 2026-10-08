@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WebScope — AI Research Reports</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='14' cy='14' r='9' fill='none' stroke='%236366f1' stroke-width='4'/><path d='M21 21l7 7' stroke='%2306b6d4' stroke-width='4' stroke-linecap='round'/></svg>">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="glow g1"></div><div class="glow g2"></div>
+<main>
+  <header>
+    <div class="logo"><svg width="30" height="30" viewBox="0 0 32 32"><circle cx="14" cy="14" r="9" fill="none" stroke="url(#g)" stroke-width="3.5"/><path d="M21 21l7 7" stroke="#06b6d4" stroke-width="3.5" stroke-linecap="round"/><defs><linearGradient id="g"><stop stop-color="#818cf8"/><stop offset="1" stop-color="#22d3ee"/></linearGradient></defs></svg>WebScope</div>
+  </header>
+
+  <section id="hero">
+    <h1>Any topic.<br><span>A researched report</span> in your inbox.</h1>
+    <p class="sub">WebScope searches the web, reads the sources, writes a cited report, and emails you a PDF with a short summary.</p>
+
+    <form id="form" autocomplete="off">
+      <div class="field">
+        <label for="topic">What should we research?</label>
+        <textarea id="topic" rows="2" maxlength="300" placeholder="e.g. The state of solid-state batteries for EVs" required></textarea>
+      </div>
+      <div class="chips" id="chips">
+        <button type="button">Quantum computing in 2026</button>
+        <button type="button">Impact of remote work on productivity</button>
+        <button type="button">Solid-state batteries</button>
+        <button type="button">Rise of AI agents</button>
+      </div>
+      <div class="field">
+        <label for="email">Send the PDF to <span class="opt">(optional)</span></label>
+        <input id="email" type="email" placeholder="you@gmail.com">
+        <small id="mailhint"></small>
+      </div>
+      <button id="go" class="primary" type="submit"><span>Start research</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+      <p id="err" class="err" hidden></p>
+    </form>
+  </section>
+
+  <section id="progress" class="card" hidden>
+    <div class="ptitle"><div class="spinner"></div><div><h2 id="ptopic"></h2><p>This takes about a minute.</p></div></div>
+    <ul id="log"></ul>
+  </section>
+
+  <section id="result" hidden>
+    <div class="card">
+      <div class="rhead">
+        <div><span class="badge">Report ready</span><h2 id="rtopic"></h2></div>
+        <div class="actions">
+          <a id="dl" class="primary" href="#" download><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-5-5m5 5l5-5M5 21h14"/></svg>Download PDF</a>
+          <button id="again" class="ghost" type="button">New research</button>
+        </div>
+      </div>
+      <p id="mailstatus" class="mail"></p>
+      <h3>Summary</h3>
+      <p id="summary" class="summary"></p>
+    </div>
+    <details class="card" open>
+      <summary>Full report</summary>
+      <article id="report"></article>
+    </details>
+  </section>
+
+  <footer>Powered by Groq · LangGraph · DuckDuckGo</footer>
+</main>
+<script src="/static/app.js"></script>
+</body>
+</html>
