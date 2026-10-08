@@ -128,7 +128,7 @@ export default function Home() {
           </section>
         )}
 
-        <footer>Powered by Groq · LangGraph · DuckDuckGo</footer>
+        <footer>Powered by Groq · LangGraph · Tavily</footer>
       </main>
     </>
   );

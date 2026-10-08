@@ -2,6 +2,7 @@ const env = (k: string, d = "") => (process.env[k] ?? d).trim();
 
 export const config = {
   groqKey: () => env("GROQ_API_KEY"),
+  tavilyKey: () => env("TAVILY_API_KEY"),
   groqModel: () => env("GROQ_MODEL", "llama-3.3-70b-versatile"),
   smtpHost: () => env("SMTP_HOST", "smtp.gmail.com"),
   smtpPort: () => Number(env("SMTP_PORT", "465")),
