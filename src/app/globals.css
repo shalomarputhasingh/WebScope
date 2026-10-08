@@ -49,3 +49,5 @@ article a{color:#22d3ee;word-break:break-all}article sup{color:var(--a);font-wei
 .src{font-size:13px;color:var(--muted)}
 footer{text-align:center;color:var(--muted);font-size:13px;margin-top:34px}
 @media (max-width:520px){form,.card{padding:16px}.actions{width:100%}.actions>*{flex:1}}
+[hidden]{display:none!important}
+button.primary:disabled{opacity:.6;cursor:wait}
